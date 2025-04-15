@@ -1,186 +1,154 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const crypto = require('crypto'); // For generating reset tokens
-const nodemailer = require('nodemailer'); // To send reset email
-const bcrypt = require('bcrypt'); // For hashing passwords
+const nodemailer = require("nodemailer");
+const crypto = require("crypto");
+const bodyParser = require("body-parser");
 
-// Simulate a simple database for users and orders (using in-memory storage for now)
-let users = [];
+// In-memory storage for users and orders (can be replaced with database)
+let users = [
+  { email: "test@example.com", password: "password123", name: "Test User", budget: 50 }
+];
 let orders = [];
-let passwordResetTokens = {}; // Store reset tokens temporarily
+let resetTokens = {};
 
-let groceryPrices = {
-  apple: 1.5,
-  banana: 0.5,
-  orange: 1.0,
-  carrot: 0.75,
-  broccoli: 1.25,
-  spinach: 2.0,
-  milk: 1.5,
-  cheese: 2.5,
-  yogurt: 1.0,
-};
+function calculateTotal(orderItems) {
+  let total = 0;
+  orderItems.forEach(({ item, quantity, price }) => {
+    total += quantity * price;
+  });
+  return total;
+}
 
-// User class to handle user-related actions
-class User {
-  constructor(name, email, password, address, phoneNumber) {
-    this.name = name;
-    this.email = email;
-    this.password = password;
-    this.address = address;
-    this.phoneNumber = phoneNumber;
+class EmailService {
+  constructor() {
+    this.transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: "your-email@gmail.com",  // Use a real email for sending emails
+        pass: "your-password"           // Use the real email password
+      }
+    });
   }
 
-  static findUserByEmail(email) {
+  sendPasswordResetEmail(to, resetLink) {
+    const mailOptions = {
+      from: "your-email@gmail.com",
+      to,
+      subject: "Reset Password",
+      text: `Reset your password: ${resetLink}`
+    };
+
+    return new Promise((resolve, reject) => {
+      this.transporter.sendMail(mailOptions, (err) => {
+        if (err) reject("Failed to send reset email");
+        else resolve("Reset email sent");
+      });
+    });
+  }
+}
+
+class User {
+  static findByEmail(email) {
     return users.find(user => user.email === email);
   }
 
-  static createUser(name, email, password, address, phoneNumber) {
-    const newUser = new User(name, email, password, address, phoneNumber);
-    users.push(newUser);
-    return newUser;
-  }
-
-  static updateUserPassword(email, newPassword) {
-    const user = User.findUserByEmail(email);
-    if (user) {
-      user.password = bcrypt.hashSync(newPassword, 10); // Hash new password
-    }
+  static updatePassword(email, newPassword) {
+    const user = this.findByEmail(email);
+    if (user) user.password = newPassword;
   }
 }
 
-// Grocery class to handle order-related actions
-class Grocery {
-  static createOrder(userId, shoppingList, budget) {
-    let totalCost = 0;
-    const selectedItems = [];
+// CATEGORIZED PRODUCTS
+const categorizedProducts = {
+  produce: [
+    { item: "Apples", price: 1.2 },
+    { item: "Bananas", price: 0.5 },
+    { item: "Carrots", price: 0.8 }
+  ],
+  dairy: [
+    { item: "Milk", price: 2.5 },
+    { item: "Cheese", price: 3.0 }
+  ],
+  snacks: [
+    { item: "Chips", price: 1.8 },
+    { item: "Cookies", price: 2.2 }
+  ]
+};
 
-    shoppingList.forEach(item => {
-      if (groceryPrices[item]) {
-        const price = groceryPrices[item];
-        if (totalCost + price <= budget) {
-          selectedItems.push({ item, price });
-          totalCost += price;
-        }
-      }
-    });
-
-    if (totalCost <= budget) {
-      orders.push({ userId, shoppingList, selectedItems, totalCost, remainingBudget: budget - totalCost });
-      return { message: 'Order placed successfully!', order: { userId, shoppingList, selectedItems, totalCost, remainingBudget: budget - totalCost } };
-    } else {
-      return { error: 'Total cost exceeds budget' };
-    }
+// User Registration
+router.post("/register", (req, res) => {
+  const { name, email, password, address, city, state, phone, budget } = req.body;
+  if (User.findByEmail(email)) {
+    return res.status(400).json({ error: "User already exists" });
   }
-
-  static getAllOrders() {
-    return orders;
-  }
-}
-
-// PasswordReset class to handle password reset functionality
-class PasswordReset {
-  static generateResetToken() {
-    return crypto.randomBytes(20).toString('hex');
-  }
-
-  static sendResetEmail(email, token) {
-    const resetUrl = `http://your-domain.com/reset-password/${token}`; // Update this URL as per your environment
-    const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: 'your-email@gmail.com',
-        pass: 'your-email-password',
-      },
-    });
-
-    transporter.sendMail({
-      from: 'your-email@gmail.com',
-      to: email,
-      subject: 'Password Reset Request',
-      text: `Please click the link to reset your password: ${resetUrl}`,
-    }, (err, info) => {
-      if (err) {
-        return { error: 'Failed to send reset email' };
-      }
-      return { message: 'Password reset email sent successfully!' };
-    });
-  }
-}
-
-// Routes related to users
-router.post('/register', (req, res) => {
-  const { name, email, password, address, phoneNumber } = req.body;
-  if (!name || !email || !password || !address || !phoneNumber) {
-    return res.status(400).json({ error: 'All fields are required' });
-  }
-
-  const newUser = User.createUser(name, email, password, address, phoneNumber);
-  return res.status(201).json({ message: 'User registered successfully!', user: newUser });
+  users.push({ name, email, password, address, city, state, phone, budget });
+  res.status(201).json({ message: "Registration successful" });
 });
 
-router.post('/login', (req, res) => {
+// User Login
+router.post("/login", (req, res) => {
   const { email, password } = req.body;
-  const user = User.findUserByEmail(email);
+  const user = User.findByEmail(email);
   if (!user || user.password !== password) {
-    return res.status(401).json({ error: 'Invalid email or password' });
+    return res.status(401).json({ error: "Invalid credentials" });
   }
-
-  return res.status(200).json({ message: 'Login successful', user });
+  res.status(200).json({ message: "Login successful" });
 });
 
-// Routes related to password reset
-router.post('/forgot-password', (req, res) => {
+// Forgot Password (Send Reset Email)
+router.post("/forgot-password", async (req, res) => {
   const { email } = req.body;
-  const user = User.findUserByEmail(email);
-  
-  if (!user) {
-    return res.status(404).json({ error: 'No user found with that email address' });
-  }
+  const user = User.findByEmail(email);
+  if (!user) return res.status(404).json({ error: "User not found" });
 
-  const resetToken = PasswordReset.generateResetToken();
-  passwordResetTokens[resetToken] = email;
-
-  const emailResponse = PasswordReset.sendResetEmail(email, resetToken);
-  if (emailResponse.error) {
-    return res.status(500).json({ error: emailResponse.error });
+  try {
+    const token = crypto.randomBytes(20).toString("hex");
+    resetTokens[token] = email;
+    const resetLink = `http://localhost:5000/reset-password.html?token=${token}`;
+    const emailService = new EmailService();
+    await emailService.sendPasswordResetEmail(email, resetLink);
+    res.status(200).json({ message: "Reset email sent" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-  res.status(200).json({ message: emailResponse.message });
 });
 
-router.post('/reset-password/:token', async (req, res) => {
-  const { token } = req.params;
-  const { password } = req.body;
+// Password Reset (After User Clicks the Reset Link)
+router.post("/reset-password", (req, res) => {
+  const { token, newPassword } = req.body;
+  const email = resetTokens[token];
+  if (!email) return res.status(400).json({ error: "Invalid or expired token" });
 
-  const email = passwordResetTokens[token];
-  if (!email) {
-    return res.status(400).json({ error: 'Invalid or expired token' });
-  }
-
-  User.updateUserPassword(email, password);
-
-  delete passwordResetTokens[token]; // Remove the token after use
-  res.status(200).json({ message: 'Password has been successfully reset' });
+  User.updatePassword(email, newPassword);
+  delete resetTokens[token];
+  res.status(200).json({ message: "Password successfully updated!" });
 });
 
-// Routes related to grocery orders
-router.post('/orders', (req, res) => {
+// Get Grocery Items
+router.get("/api/grocery-items", (req, res) => {
+  res.json(categorizedProducts);
+});
+
+// Place an Order (Check Total Cost Against Budget)
+router.post("/orders", (req, res) => {
   const { userId, shoppingList, budget } = req.body;
-  if (!userId || !shoppingList || !budget) {
-    return res.status(400).json({ error: 'User ID, shopping list, and budget are required' });
+
+  // Calculate the total cost of the order
+  const total = calculateTotal(shoppingList);
+
+  if (total > budget) {
+    return res.status(400).json({ error: "You do not have enough funds for this order" });
   }
 
-  const orderResponse = Grocery.createOrder(userId, shoppingList, budget);
-  if (orderResponse.error) {
-    return res.status(400).json({ error: orderResponse.error });
-  }
+  // Create the order
+  const order = {
+    userId,
+    shoppingList,
+    total
+  };
 
-  return res.status(201).json(orderResponse);
-});
-
-router.get('/orders', (req, res) => {
-  const allOrders = Grocery.getAllOrders();
-  return res.status(200).json({ orders: allOrders });
+  orders.push(order);
+  res.status(200).json({ message: "Order placed successfully", order });
 });
 
 module.exports = router;

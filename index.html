@@ -1,217 +1,128 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Jessy's Grocery Store</title>
-  <link rel="stylesheet" href="styles.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jessy's Grocery Outlet</title>
+  <link rel="stylesheet" href="design.css">
 </head>
 <body>
-  <h1>🛒 Grocery Store</h1>
+  <h1>Jessy's Grocery Outlet</h1>
 
-  <!-- REGISTRATION FORM -->
-  <section id="registerSection">
+  <div id="register-form">
     <h2>Register</h2>
-    <form id="registerForm">
-      <input type="text" id="regName" placeholder="Full Name" required />
-      <input type="text" id="regAddress" placeholder="Street Address" required />
-      <input type="text" id="regCity" placeholder="City" required />
-      <input type="text" id="regState" placeholder="State" required />
-      <input type="text" id="regZip" placeholder="Zip Code" required />
-      <input type="tel" id="regPhone" placeholder="Phone Number" required />
-      <input type="email" id="regEmail" placeholder="Email" required />
-      <div>
-        <input type="password" id="regPassword" placeholder="Password" required />
-        <label for="showPassword">Show Password</label>
-        <input type="checkbox" id="showPassword" />
+    <form id="registration-form">
+      <input type="text" id="name" placeholder="Full Name" required>
+      <input type="email" id="email" placeholder="Email" required>
+      <input type="password" id="password" placeholder="Password" required>
+      <input type="text" id="address" placeholder="Street Address" required>
+      <input type="text" id="city" placeholder="City" required>
+      <input type="text" id="state" placeholder="State" required>
+      <input type="text" id="phone" placeholder="Phone Number" required>
+      <div class="password-toggle">
+        <label for="show-password">Show Password</label>
+        <input type="checkbox" id="show-password">
       </div>
       <button type="submit">Register</button>
     </form>
-  </section>
+  </div>
 
-  <!-- LOGIN FORM -->
-  <section id="loginSection">
+  <div id="login-form">
     <h2>Login</h2>
-    <form id="loginForm">
-      <input type="email" id="loginEmail" placeholder="Email" required />
-      <input type="password" id="loginPassword" placeholder="Password" required />
+    <form id="login-form">
+      <input type="email" id="login-email" placeholder="Email" required>
+      <input type="password" id="login-password" placeholder="Password" required>
+      <div class="password-toggle">
+        <label for="show-login-password">Show Password</label>
+        <input type="checkbox" id="show-login-password">
+      </div>
       <button type="submit">Login</button>
     </form>
-    <p><a href="#" id="forgotPasswordLink">Forgot Password?</a></p>
-  </section>
-
-  <!-- SHOPPING FORM (HIDDEN UNTIL LOGIN) -->
-  <section id="shopSection" style="display: none;">
-    <h2>Place Your Order</h2>
-    <form id="shoppingForm">
-      <input type="number" id="budget" placeholder="Budget ($)" required />
-      <input type="text" id="shoppingList" placeholder="Shopping list (comma-separated)" required />
-      <button type="submit">Submit Order</button>
-    </form>
-  </section>
-
-  <!-- Forgot Password Popup -->
-  <div id="forgotPasswordPopup" class="popup" style="display: none;">
-    <h2>Forgot Password</h2>
-    <form id="forgotPasswordForm">
-      <input type="email" id="forgotPasswordEmail" placeholder="Enter your email" required />
-      <button type="submit">Send Reset Link</button>
-      <button type="button" id="closePopup">Close</button>
-    </form>
   </div>
 
-  <!-- Reset Password Popup -->
-  <div id="resetPasswordPopup" class="popup" style="display: none;">
-    <h2>Reset Password</h2>
-    <form id="resetPasswordForm">
-      <input type="password" id="newPassword" placeholder="New Password" required />
-      <input type="password" id="confirmPassword" placeholder="Confirm New Password" required />
-      <button type="submit">Reset Password</button>
-      <button type="button" id="closeResetPopup">Close</button>
-    </form>
-  </div>
-
-  <div id="result"></div>
+  <div class="message" id="message"></div>
 
   <script>
-    let customerId = null;
-    let resetToken = '';
-
-    // Registration
-    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+    document.getElementById('registration-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const newCustomer = {
-        name: document.getElementById('regName').value,
-        address: document.getElementById('regAddress').value,
-        city: document.getElementById('regCity').value,
-        state: document.getElementById('regState').value,
-        zip: document.getElementById('regZip').value,
-        phone: document.getElementById('regPhone').value,
-        email: document.getElementById('regEmail').value,
-        password: document.getElementById('regPassword').value
-      };
 
-      const res = await fetch('/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newCustomer)
-      });
+      const name = document.getElementById('name').value;
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      const address = document.getElementById('address').value;
+      const city = document.getElementById('city').value;
+      const state = document.getElementById('state').value;
+      const phone = document.getElementById('phone').value;
 
-      const data = await res.json();
-      document.getElementById('result').innerText = data.message;
+      const newUser = { name, email, password, address, city, state, phone };
+
+      // Simulate sending registration data
+      try {
+        const response = await fetch('/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newUser)
+        });
+
+        const result = await response.json();
+        if (response.status === 201) {
+          document.getElementById('message').textContent = result.message;
+          // Hide the registration form and show login
+          document.getElementById('register-form').style.display = 'none';
+          document.getElementById('login-form').style.display = 'block';
+        } else {
+          document.getElementById('message').textContent = result.error;
+        }
+      } catch (error) {
+        document.getElementById('message').textContent = 'Error registering user.';
+      }
     });
 
-    // Password Toggle
-    document.getElementById('showPassword').addEventListener('change', (e) => {
-      const passwordField = document.getElementById('regPassword');
-      if (e.target.checked) {
-        passwordField.type = 'text'; // Show password
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+
+      // Simulate login request
+      try {
+        const response = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const result = await response.json();
+        if (response.status === 200) {
+          document.getElementById('message').textContent = result.message;
+          // Redirect to the order page
+          window.location.href = 'order.html'; // Assuming you have order.html
+        } else {
+          document.getElementById('message').textContent = result.error;
+        }
+      } catch (error) {
+        document.getElementById('message').textContent = 'Error logging in.';
+      }
+    });
+
+    // Toggle password visibility for registration form
+    document.getElementById('show-password').addEventListener('change', function () {
+      const passwordField = document.getElementById('password');
+      if (this.checked) {
+        passwordField.type = 'text';
       } else {
-        passwordField.type = 'password'; // Hide password
+        passwordField.type = 'password';
       }
     });
 
-    // Login
-    document.getElementById('loginForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const credentials = {
-        email: document.getElementById('loginEmail').value,
-        password: document.getElementById('loginPassword').value
-      };
-
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credentials)
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        customerId = data.customerId;
-        document.getElementById('shopSection').style.display = 'block';
-        document.getElementById('result').innerText = `Welcome, ${data.name}!`;
+    // Toggle password visibility for login form
+    document.getElementById('show-login-password').addEventListener('change', function () {
+      const passwordField = document.getElementById('login-password');
+      if (this.checked) {
+        passwordField.type = 'text';
       } else {
-        document.getElementById('result').innerText = data.message;
+        passwordField.type = 'password';
       }
-    });
-
-    // Forgot Password Link Click
-    document.getElementById('forgotPasswordLink').addEventListener('click', () => {
-      document.getElementById('forgotPasswordPopup').style.display = 'block';
-    });
-
-    // Close Forgot Password Popup
-    document.getElementById('closePopup').addEventListener('click', () => {
-      document.getElementById('forgotPasswordPopup').style.display = 'none';
-    });
-
-    // Forgot Password Form Submission
-    document.getElementById('forgotPasswordForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('forgotPasswordEmail').value;
-
-      const res = await fetch('/api/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
-      });
-
-      const data = await res.json();
-      document.getElementById('result').innerText = data.message;
-      if (data.success) {
-        resetToken = data.resetToken; // Store the reset token for later
-        document.getElementById('forgotPasswordPopup').style.display = 'none';
-      }
-    });
-
-    // Reset Password
-    document.getElementById('resetPasswordForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const newPassword = document.getElementById('newPassword').value;
-      const confirmPassword = document.getElementById('confirmPassword').value;
-
-      if (newPassword !== confirmPassword) {
-        return document.getElementById('result').innerText = "Passwords do not match!";
-      }
-
-      const res = await fetch(`/api/reset-password/${resetToken}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newPassword })
-      });
-
-      const data = await res.json();
-      document.getElementById('result').innerText = data.message;
-      if (data.success) {
-        document.getElementById('resetPasswordPopup').style.display = 'none';
-      }
-    });
-
-    // Close Reset Password Popup
-    document.getElementById('closeResetPopup').addEventListener('click', () => {
-      document.getElementById('resetPasswordPopup').style.display = 'none';
-    });
-
-    // Submit Order
-    document.getElementById('shoppingForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const order = {
-        customerId,
-        budget: parseFloat(document.getElementById('budget').value),
-        shoppingList: document.getElementById('shoppingList').value
-          .split(',')
-          .map(item => item.trim().toLowerCase())
-      };
-
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(order)
-      });
-
-      const data = await res.json();
-      document.getElementById('result').innerText = JSON.stringify(data, null, 2);
     });
   </script>
 </body>

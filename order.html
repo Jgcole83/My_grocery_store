@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grocery Store Order</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 80%;
+            margin: 30px auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+        }
+        .item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        .item label {
+            font-size: 16px;
+            flex: 1;
+        }
+        .item input {
+            width: 60px;
+            padding: 8px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .item span {
+            font-size: 14px;
+            color: #555;
+        }
+        .total {
+            margin-top: 20px;
+            text-align: right;
+            font-size: 18px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .error {
+            color: red;
+            text-align: center;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        #place-order {
+            width: 100%;
+            padding: 12px;
+            background-color: #4CAF50;
+            color: white;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #place-order:hover {
+            background-color: #45a049;
+        }
+        .category-title {
+            margin-top: 20px;
+            font-size: 20px;
+            color: #333;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Order Your Groceries</h1>
+    
+    <div id="error-message" class="error"></div>
+    
+    <div id="grocery-items">
+        <!-- Dynamic items will be loaded here -->
+    </div>
+    
+    <button id="place-order">Place Order</button>
+    
+    <div id="total" class="total">
+        Total: $0.00
+    </div>
+</div>
+
+<script>
+    const groceryItemsContainer = document.getElementById('grocery-items');
+    const errorMessage = document.getElementById('error-message');
+    const totalDisplay = document.getElementById('total');
+    const placeOrderButton = document.getElementById('place-order');
+    
+    // Fetch grocery items from the backend
+    async function fetchGroceryItems() {
+        try {
+            const response = await fetch('http://localhost:5000/api/grocery-items');
+            const items = await response.json();
+            renderItems(items);
+        } catch (error) {
+            errorMessage.textContent = 'Error fetching grocery items. Please try again later.';
+        }
+    }
+
+    // Render the grocery items into the HTML
+    function renderItems(items) {
+        const categories = Object.keys(items);
+        categories.forEach(category => {
+            const categoryContainer = document.createElement('div');
+            categoryContainer.innerHTML = `<div class="category-title">${category.charAt(0).toUpperCase() + category.slice(1)}</div>`;
+            groceryItemsContainer.appendChild(categoryContainer);
+
+            items[category].forEach(item => {
+                const itemContainer = document.createElement('div');
+                itemContainer.classList.add('item');
+                itemContainer.innerHTML = `
+                    <label for="${item.item}">${item.item} ($${item.price.toFixed(2)})</label>
+                    <input type="number" id="${item.item}" min="0" value="0" data-price="${item.price}">
+                    <span class="item-total">Total: $0.00</span>
+                `;
+                categoryContainer.appendChild(itemContainer);
+
+                // Add event listener to update total when quantity changes
+                const quantityInput = itemContainer.querySelector('input');
+                quantityInput.addEventListener('input', () => updateItemTotal(item.item, item.price, quantityInput.value));
+            });
+        });
+    }
+
+    // Update the total for an individual item and the overall total
+    function updateItemTotal(itemName, price, quantity) {
+        const itemTotalDisplay = document.querySelector(`#${itemName}`).parentNode.querySelector('.item-total');
+        const totalPrice = price * quantity;
+        itemTotalDisplay.textContent = `Total: $${totalPrice.toFixed(2)}`;
+        updateOverallTotal();
+    }
+
+    // Calculate the overall total based on the selected quantities
+    function updateOverallTotal() {
+        let overallTotal = 0;
+        const quantityInputs = document.querySelectorAll('input[type="number"]');
+        quantityInputs.forEach(input => {
+            const price = parseFloat(input.dataset.price);
+            const quantity = parseInt(input.value);
+            overallTotal += price * quantity;
+        });
+        totalDisplay.textContent = `Total: $${overallTotal.toFixed(2)}`;
+    }
+
+    // Handle the order submission
+    placeOrderButton.addEventListener('click', async () => {
+        const shoppingList = [];
+        const quantityInputs = document.querySelectorAll('input[type="number"]');
+        quantityInputs.forEach(input => {
+            const itemName = input.id;
+            const quantity = parseInt(input.value);
+            if (quantity > 0) {
+                shoppingList.push({ item: itemName, quantity, price: parseFloat(input.dataset.price) });
+            }
+        });
+
+        const userId = 1; // Replace with actual user ID, which can be set in a session or from login context
+        const budget = 50; // Example budget, you can adjust based on user preferences or login
+
+        if (shoppingList.length === 0) {
+            errorMessage.textContent = 'Please select at least one item.';
+            return;
+        }
+
+        const orderData = {
+            userId,
+            shoppingList,
+            budget
+        };
+
+        try {
+            const response = await fetch('http://localhost:5000/orders', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(orderData)
+            });
+            const result = await response.json();
+            if (response.ok) {
+                alert(result.message);
+            } else {
+                errorMessage.textContent = result.error;
+            }
+        } catch (error) {
+            errorMessage.textContent = 'Error placing the order. Please try again later.';
+        }
+    });
+
+    // Initial fetch to load the items
+    fetchGroceryItems();
+</script>
+
+</body>
+</html>
